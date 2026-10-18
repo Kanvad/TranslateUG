@@ -6,14 +6,14 @@ TRICH XUAT (buoc 0 + 1 cua pipeline viet hoa game Unity).
 - Sinh "don vi dich" (translation units) da unique hoa + da mask placeholder/tag/glossary.
 
 Dau ra (local/ khong day len GitHub):
-  local/build/raw/*                 bytes goc (doi chieu)
-  local/build/units.jsonl           moi dong 1 chuoi CAN DICH
-  local/build/units_index.json      thu tu xuat hien goc -> uid (cho buoc tai nap)
-  local/build/extract_report.json   thong ke + hash
+  local/<ten>/build/raw/*                 bytes goc (doi chieu)
+  local/<ten>/build/units.jsonl           moi dong 1 chuoi CAN DICH
+  local/<ten>/build/units_index.json      thu tu xuat hien goc -> uid (cho buoc tai nap)
+  local/<ten>/build/extract_report.json   thong ke + hash
 
 Dung:
   .venv/bin/python src/extract_units.py                # profile duy nhat tim thay
-  .venv/bin/python src/extract_units.py --game mygame  # chon profile (local/games/mygame.py)
+  .venv/bin/python src/extract_units.py --game mygame  # chon profile (local/mygame/game.py) — moi game mot thu muc con trong local/
 """
 import hashlib
 import json
@@ -25,14 +25,14 @@ import UnityPy
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from games import load_profile, game_arg          # noqa: E402
 from formats import loads_json, dumps_json, load_csv, dump_csv  # noqa: E402
-from paths import BUILD                            # noqa: E402
+import paths                                                    # noqa: E402
 
 # Nap profile + ap style/entity/glossary TRUOC khi lay ten regex tu protect.
 PROFILE = load_profile(game_arg())
 PROFILE.apply()
 from protect import Protector, RE_HAS_WORD, glossary_hits  # noqa: E402
 
-os.makedirs(f"{BUILD}/raw", exist_ok=True)
+os.makedirs(f"{paths.BUILD}/raw", exist_ok=True)
 
 _CACHE = {}
 
@@ -67,7 +67,7 @@ def main():
     for a in p.assets:
         r = read_textasset(p.bundle_path(a.bundle), a.textasset)
         raw[a.textasset] = r
-        open(f"{BUILD}/raw/{a.raw_name}", "wb").write(r)
+        open(f"{paths.BUILD}/raw/{a.raw_name}", "wb").write(r)
         print(f"   {a.raw_name:38s} {len(r):>9,} bytes  "
               f"sha256={hashlib.sha256(r).hexdigest()[:16]}")
 
@@ -126,11 +126,11 @@ def main():
                             raw=a.raw_name, dialogue=a.dialogue, entries=entries))
         print(f"   {a.textasset:34s} {len(entries):>7,} muc  (kind={kind})")
 
-    with open(f"{BUILD}/units.jsonl", "w", encoding="utf-8") as f:
+    with open(f"{paths.BUILD}/units.jsonl", "w", encoding="utf-8") as f:
         for u in unit_list:
             f.write(json.dumps(u, ensure_ascii=False) + "\n")
     json.dump({"game": p.name, "sources": sources},
-              open(f"{BUILD}/units_index.json", "w", encoding="utf-8"),
+              open(f"{paths.BUILD}/units_index.json", "w", encoding="utf-8"),
               ensure_ascii=False)
 
     # --- BUOC 4: bao cao ---
@@ -153,7 +153,7 @@ def main():
         byte_exact=byte_exact,
         sha256=sha,
     )
-    json.dump(report, open(f"{BUILD}/extract_report.json", "w", encoding="utf-8"),
+    json.dump(report, open(f"{paths.BUILD}/extract_report.json", "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
 
     print(f"   Tong lan xuat hien   : {report['total_occurrences']:>8,}")
@@ -164,8 +164,8 @@ def main():
     print(f"   Co ten glossary      : {report['units_with_glossary_name']:>8,}")
     print(f"   Tong sentinel        : {report['total_sentinels']:>8,}")
     print(f"   Ky tu can dich       : {report['chars_to_translate']:>8,}")
-    print("\nBUOC 4 — Xong. Dau ra: local/build/units.jsonl, local/build/units_index.json, "
-          "local/build/extract_report.json, local/build/raw/")
+    print("\nBUOC 4 — Xong. Dau ra: local/<ten>/build/units.jsonl, local/<ten>/build/units_index.json, "
+          "local/<ten>/build/extract_report.json, local/<ten>/build/raw/")
 
 
 if __name__ == "__main__":

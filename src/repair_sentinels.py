@@ -10,14 +10,14 @@ KHONG goi restore(): ban dich trong file da o dang restored (notebook da restore
 goi restore() lan nua se double-apply va lam hong file (xem nhat ky muc AF).
 
 Dung:
-  .venv/bin/python src/repair_sentinels.py local/build/translations_hymt2.jsonl
-  .venv/bin/python src/repair_sentinels.py local/build/translations_hymt2.jsonl --out local/build/fixed.jsonl
+  .venv/bin/python src/repair_sentinels.py local/<ten>/build/translations_hymt2.jsonl
+  .venv/bin/python src/repair_sentinels.py local/<ten>/build/translations_hymt2.jsonl --out local/<ten>/build/fixed.jsonl
 """
 import argparse, json, os, re, sys
 from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from games import load_profile, game_arg  # noqa: E402
-from paths import BUILD                   # noqa: E402
+import paths                                                    # noqa: E402
 
 PROFILE = load_profile(game_arg())
 PROFILE.apply()
@@ -68,7 +68,7 @@ def qa(u, vi):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("translations")
-    ap.add_argument("--units", default=f"{BUILD}/units.jsonl")
+    ap.add_argument("--units", default=f"{paths.BUILD}/units.jsonl")
     ap.add_argument("--out", default=None)
     ap.add_argument("--game", default=game_arg(), help="game profile trong src/games/")
     a = ap.parse_args()

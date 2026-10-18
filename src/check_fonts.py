@@ -7,7 +7,7 @@ Phan biet ro 2 loai font (day la bay da gap):
   - UnityEngine.Font (TTF that) -> day du glyph, render duoc moi ky tu co trong font.
 
 Chay: .venv/bin/python src/check_fonts.py [--game ten]
-Doc:  local/build/raw/  (ban goc byte-exact do extract_units.py ghi ra)
+Doc:  local/<ten>/build/raw/  (ban goc byte-exact do extract_units.py ghi ra)
 """
 import os, sys
 import UnityPy
@@ -15,14 +15,14 @@ import UnityPy
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from games import load_profile, game_arg                     # noqa: E402
 from formats import loads_json, load_csv                     # noqa: E402
-from paths import BUILD                                      # noqa: E402
+import paths                                                    # noqa: E402
 
 P = load_profile(game_arg())
 
 # --- 1. Gom moi ky tu ma phan van ban nguon (EN) su dung ---
 full = []
 for a in P.translated_assets:
-    raw = open(f"{BUILD}/raw/{a.raw_name}", "rb").read()
+    raw = open(f"{paths.BUILD}/raw/{a.raw_name}", "rb").read()
     data = loads_json(raw) if a.fmt == "json" else load_csv(raw)
     full += [x[a.text_field] for x in data if isinstance(x.get(a.text_field), str)]
 used = {ord(c) for c in "".join(full)}

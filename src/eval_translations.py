@@ -20,8 +20,8 @@ Noi dung danh gia:
 
 Dung:
     .venv/bin/python src/eval_translations.py
-    .venv/bin/python src/eval_translations.py --units local/build/units.jsonl \\
-        --trans local/build/translations_hymt2.jsonl --out-dir local/build/eval
+    .venv/bin/python src/eval_translations.py --units local/<ten>/build/units.jsonl \\
+        --trans local/<ten>/build/translations_hymt2.jsonl --out-dir local/<ten>/build/eval
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from games import load_profile, game_arg  # noqa: E402
-from paths import BUILD                   # noqa: E402
+import paths                                                    # noqa: E402
 
 PROFILE = load_profile(game_arg())
 PROFILE.apply()
@@ -606,6 +606,12 @@ def print_report(res: dict) -> None:
     print(f"  ty le do dai VI/EN (bo token): dat n={dd['dat'].get('n',0):,}"
           f" trung_vi={dd['dat'].get('trung_vi')} | loi n={dd['loi'].get('n',0):,}"
           f" trung_vi={dd['loi'].get('trung_vi')}")
+    con_lai = {k: v for k, v in nd["theo_nhom"].items() if k in ("con_nguyen_en", "rong")
+               and v > 0}
+    if con_lai:
+        print("\n  !! CẢNH BÁO — CHƯA ĐẠT: nhóm " + ", ".join(sorted(con_lai))
+              + " > 0 (bản dịch bị _write_err fallback ghi vi=EN gốc, phải MODE=\"failed\" dịch lại);"
+                " tham khảo report.json -> noi_dung.theo_nhom + vi_du.con_nguyen_en")
 
     print("\n[6] DIEM")
     print(f"    dinh dang (5 lop QA)   {sc['dinh_dang']:>6.2f}/100")
@@ -852,11 +858,11 @@ def main() -> int:
     except Exception:
         pass
     ap = argparse.ArgumentParser(description="Danh gia 2 file dich (units + translations)")
-    ap.add_argument("--units", default=os.path.join(BUILD, "units.jsonl"),
+    ap.add_argument("--units", default=os.path.join(paths.BUILD, "units.jsonl"),
                     help="file don vi EN goc (JSONL)")
-    ap.add_argument("--trans", default=os.path.join(BUILD, "translations_hymt2.jsonl"),
+    ap.add_argument("--trans", default=os.path.join(paths.BUILD, "translations_hymt2.jsonl"),
                     help="file ban dich VI (JSONL)")
-    ap.add_argument("--out-dir", default=os.path.join(BUILD, "eval"),
+    ap.add_argument("--out-dir", default=os.path.join(paths.BUILD, "eval"),
                     help="thu muc ghi report.json + bieu do")
     ap.add_argument("--no-plots", action="store_true", help="chi in bao cao, khong ve bieu do")
     ap.add_argument("--top", type=int, default=10, help="so vi du luu trong report.json")

@@ -3,21 +3,21 @@ TAI NAP (buoc cuoi): rap ban dich -> repack bundle -> va catalog.json -> fix fon
 
 Su dung:
   .venv/bin/python src/inject.py --identity          # test toan bo duong ong bang EN
-  .venv/bin/python src/inject.py                     # dung ban dich trong local/build/
+  .venv/bin/python src/inject.py                     # dung ban dich trong local/<ten>/build/
   .venv/bin/python src/inject.py --game mygame       # game khac (src/games/mygame.py)
 
 Dau ra (staging trong local/, KHONG dung vao game va KHONG day len GitHub):
-  local/build/mod/<bundle dir>/<cac bundle da sua>
-  local/build/mod/catalog.json
-  local/build/mod/apply.sh
+  local/<ten>/build/mod/<bundle dir>/<cac bundle da sua>
+  local/<ten>/build/mod/catalog.json
+  local/<ten>/build/mod/apply.sh
 """
-import argparse, hashlib, json, os, re, struct, sys
+import argparse, csv as _csv, hashlib, io as _io, json, os, re, struct, sys
 import UnityPy
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from games import load_profile, game_arg                       # noqa: E402
 from formats import loads_json, dumps_json, load_csv, dump_csv  # noqa: E402
-from paths import BUILD                                        # noqa: E402
+import paths                                                    # noqa: E402
 
 # Nap profile + ap style/entity/glossary TRUOC khi lay ten regex tu protect.
 PROFILE = load_profile(game_arg())
@@ -65,8 +65,25 @@ def compression_type(path):
     return flags & 0x3F, flags
 
 
-def repack(bundle_path, replacements, out_path):
-    """Thay m_Script cua cac TextAsset roi ghi bundle moi."""
+def _mono_is_yarn_localization(tt):
+    """Nhan dang asset Localization cua Yarn (mot ngon ngu).
+
+    DolocTown: bundle chua cac MonoBehaviour ten 'en'/'ru'/... voi truong
+    `_LocaleCode` va bang chuoi `_stringTable` (keys/values). Game doc bang
+    nay khi tra loi Yarn line-id — TextAsset `dialogue_text_en` CHI la ban
+    chay sanh cua editor, gan vao game khong hieu qua (da chung minh tep rung).
+    """
+    if not isinstance(tt, dict):
+        return False
+    return tt.get("_LocaleCode") == "en" and isinstance(tt.get("_stringTable"), dict)
+
+
+def repack(bundle_path, replacements, out_path, mono_repl=None):
+    """Thay m_Script cua cac TextAsset + bang Localization cua Yarn roi ghi bundle moi.
+
+    mono_repl: dict {line_id: text} ghi vao moi asset Localization `_LocaleCode == 'en'`.
+    Tra ve (do dai bundle, packer, so asset mono da sua).
+    """
     env = UnityPy.load(bundle_path)
     applied = set()
     for o in env.objects:
@@ -81,11 +98,38 @@ def repack(bundle_path, replacements, out_path):
     missing = set(replacements) - applied
     if missing:
         raise KeyError(f"khong tim thay TextAsset: {missing}")
+
+    n_mono = 0
+    if mono_repl:
+        for o in env.objects:
+            if o.type.name != "MonoBehaviour":
+                continue
+            try:
+                d = o.read()
+                # loai nhanh theo ten ngon ngu cho re: cac asset Localization
+                # deu ten trung _LocaleCode ('en', 'ru', 'de'...). Chi can 'en'
+                # vi game chay LANGUAGE_TEXT = en.
+                if d.m_Name != "en":
+                    continue
+                tt = o.read_typetree()
+            except Exception:
+                continue
+            if not _mono_is_yarn_localization(tt):
+                continue
+            st = tt["_stringTable"]
+            ks, vs = st.get("keys") or [], st.get("values") or []
+            assert len(ks) == len(vs), f"{bundle_path}: keys/values lech: {len(ks)} vs {len(vs)}"
+            n_mono += 1
+            for i, k in enumerate(ks):
+                if k in mono_repl:
+                    vs[i] = mono_repl[k]
+            o.save_typetree(tt)
+
     ctype, flags = compression_type(bundle_path)
     packer = {0: "none", 2: "lzma", 3: "lz4"}.get(ctype, "lz4")
     data = env.file.save(packer=packer)
     open(out_path, "wb").write(data)
-    return len(data), packer
+    return len(data), packer, n_mono
 
 
 def patch_catalog(catalog_path, bundle_sizes, out_path):
@@ -200,8 +244,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--identity", action="store_true", help="dung EN lam VI (test duong ong)")
     ap.add_argument("--translations", default=None,
-                    help="mac dinh tu tim trong local/build/ (translations.jsonl, translations_hymt2.jsonl, ...)")
-    ap.add_argument("--out", default=None, help="mac dinh local/build/mod (that) hoac local/build/mod_identity")
+                    help="mac dinh tu tim trong local/<ten>/build/ (translations.jsonl, translations_hymt2.jsonl, ...)")
+    ap.add_argument("--out", default=None, help="mac dinh local/<ten>/build/mod (that) hoac local/<ten>/build/mod_identity")
     ap.add_argument("--skip-verify", action="store_true")
     ap.add_argument("--game", default=game_arg(), help="game profile trong src/games/")
     args = ap.parse_args()
@@ -209,23 +253,23 @@ def main():
 
     if args.out is None:
         # che do identity KHONG duoc de vao mod/ that de tranh ap nham ban chua dich
-        args.out = f"{BUILD}/mod_identity" if args.identity else f"{BUILD}/mod"
+        args.out = f"{paths.BUILD}/mod_identity" if args.identity else f"{paths.BUILD}/mod"
 
     if args.translations is None:
         for cand in ("translations.jsonl", "translations_hymt2.jsonl",
                      "translations_hymt2_fixed.jsonl", "translations_fixed.jsonl"):
-            path = f"{BUILD}/{cand}"
+            path = f"{paths.BUILD}/{cand}"
             if os.path.exists(path):
                 args.translations = path
                 break
         if args.translations is None:
-            sys.exit("DUNG: khong thay ban dich nao trong local/build/.\n"
+            sys.exit("DUNG: khong thay ban dich nao trong local/<ten>/build/.\n"
                      "  -> Chay notebook Kaggle (local/kaggle_*_llamacpp.ipynb) roi tai ket qua ve\n"
-                     "     local/build/translations_hymt2.jsonl")
-        print(f"Ban dich: {os.path.relpath(args.translations, os.path.dirname(BUILD))}")
+                     "     local/<ten>/build/translations_hymt2.jsonl")
+        print(f"Ban dich: {os.path.relpath(args.translations, os.path.dirname(paths.BUILD))}")
 
-    units = load_jsonl(f"{BUILD}/units.jsonl")
-    index = json.load(open(f"{BUILD}/units_index.json", encoding="utf-8"))
+    units = load_jsonl(f"{paths.BUILD}/units.jsonl")
+    index = json.load(open(f"{paths.BUILD}/units_index.json", encoding="utf-8"))
     by_uid = {u["uid"]: u for u in units}
 
     # ---------- 1. nap ban dich ----------
@@ -281,7 +325,7 @@ def main():
     print(f"QA mem : chua dich (van tieng Anh)={len(untranslated)} | "
           f"tag rong={len(empty_tag)} | 2 dau cach={len(dbl_space)}")
     json.dump(dict(untranslated=untranslated, empty_tag=empty_tag, double_space=dbl_space),
-              open(f"{BUILD}/qa_canh_bao.json", "w"))
+              open(f"{paths.BUILD}/qa_canh_bao.json", "w"))
     if untranslated[:5]:
         print(f"  vi du chua dich: {[by_uid[i]['en'][:28] for i in untranslated[:5]]}")
     if empty_tag[:5]:
@@ -300,7 +344,7 @@ def main():
     if bad and not args.skip_verify:
         sys.exit("DUNG: QA khong dat.\n"
                  "  -> Chay notebook Kaggle (local/kaggle_*_llamacpp.ipynb), tai ket qua ve "
-                 "local/build/ roi thu lai.")
+                 "local/<ten>/build/ roi thu lai.")
 
     # ---------- 3. rap bang ----------
     def vi_of(uid, original):
@@ -310,7 +354,7 @@ def main():
     new_bytes = {}
     for src in index["sources"]:
         a = p.asset(src["textasset"])
-        raw = open(f"{BUILD}/raw/{src['raw']}", "rb").read()
+        raw = open(f"{paths.BUILD}/raw/{src['raw']}", "rb").read()
         obj = parse_raw(a, raw)
         assert len(obj) == len(src["entries"]), f"so muc {a.textasset} doi!"
         for item, ix in zip(obj, src["entries"]):
@@ -327,7 +371,7 @@ def main():
     for textasset, fix in p.font_fix.items():
         a = p.asset(textasset)
         raw = new_bytes.get(textasset) or \
-            open(f"{BUILD}/raw/{a.raw_name}", "rb").read()
+            open(f"{paths.BUILD}/raw/{a.raw_name}", "rb").read()
         obj = loads_json(raw)
         for item in obj:
             for field, newurl in (fix.get(str(item[a.id_field])) or {}).items():
@@ -342,6 +386,28 @@ def main():
     if font_changed:
         print(f"Font fix: {font_changed}")
 
+    # ---------- 3b. bang Localization cua Yarn (MonoBehaviour `_stringTable`) ----------
+    # Game tra loi line-id Yarn tu asset Localization (ten trung _LocaleCode) trong
+    # bundle, KHONG doc TextAsset `dialogue_text_en` (chi la ban chay sanh editor).
+    # Bang `_stringTable` {keys, values} trung khop dong CSV cua cac bang doi
+    # thoai (fmt='csv'), nen tai dung nguyen van ban vi da dua vao CSV.
+    mono_repl = {}
+    for src in index["sources"]:
+        a = p.asset(src["textasset"])
+        if getattr(a, "fmt", None) != "csv":
+            continue
+        txt = new_bytes[a.textasset]
+        rows = list(_csv.reader(_io.StringIO(txt.decode("utf-8"))))
+        li, ii, ti = (rows[0].index(c) for c in ("language", "id", "text"))
+        n_en = 0
+        for r in rows[1:]:
+            if len(r) >= 3 and r[li] == "en":
+                mono_repl[r[ii]] = r[ti]
+                n_en += 1
+        print(f"{a.textasset:34s} mono table: {n_en} key 'en'")
+    if not mono_repl:
+        print("Khong co bang CSV nao cho mono table (game khac la bo qua buoc nay).")
+
     # gom theo bundle
     repl = {}
     for a in p.assets:
@@ -352,14 +418,22 @@ def main():
     out_bdir = os.path.join(args.out, p.bundle_subdir)
     os.makedirs(out_bdir, exist_ok=True)
     sizes, expectations = {}, {}
+    mono_found_total, mono_checks = 0, {}
     for bundle, repl_map in repl.items():
         src_path = p.bundle_path(bundle)
         out_path = os.path.join(out_bdir, bundle)
         before = {n: sha(b) for n, (_, b) in bundle_assets(src_path)[1].items()}
-        n_out, packer = repack(src_path, repl_map, out_path)
+        n_out, packer, n_mono = repack(src_path, repl_map, out_path,
+                                       mono_repl=mono_repl or None)
+        mono_found_total += n_mono
+        mono_checks[bundle] = (out_path, mono_repl, n_mono)
         sizes[bundle_key(bundle)] = n_out
         expectations[bundle] = (before, repl_map)
-        print(f"Repack {bundle[:52]:54s} -> {n_out:>11,} bytes ({packer})")
+        print(f"Repack {bundle[:52]:54s} -> {n_out:>11,} bytes ({packer}) | mono Localization: {n_mono}")
+    if mono_repl:
+        if mono_found_total < 1:
+            sys.exit("DUNG: khong tim thay asset Localization 'en' (_stringTable) nao trong "
+                     "cac bundle da sua — game se van doc EN (da chung minh tep rung tren DolocTown).")
 
     # ---------- 5. kiem tra sau repack ----------
     print("\nKiem tra sau repack:")
@@ -388,6 +462,38 @@ def main():
                 print(f"     OK {tname}: {len(want):,} bytes khop chinh xac")
         for k in before:
             if k not in allowed and sha(after_b.get(k, b"")) != before[k]:
+                ok_all = False
+        # kiem tra bang Localization mono: doc lai tu bundle moi so voi ban vi.
+        # Chi dung voi nhung bundle repack da tim thay asset Localization trong
+        # do (bundle khac co the khong chua asset nao nhu vay — khong phai loi).
+        _, want_mono, n_mono_here = mono_checks.get(name, (None, {}, 0))
+        want_mono = want_mono or {}
+        if want_mono and n_mono_here >= 1:
+            env2 = UnityPy.load(out_path)
+            checked = 0
+            for o2 in env2.objects:
+                if o2.type.name != "MonoBehaviour":
+                    continue
+                try:
+                    d2 = o2.read()
+                    if d2.m_Name != "en":
+                        continue
+                    tt2 = o2.read_typetree()
+                except Exception:
+                    continue
+                if not _mono_is_yarn_localization(tt2):
+                    continue
+                got_map = {k: v for k, v in zip(tt2["_stringTable"]["keys"],
+                                                tt2["_stringTable"]["values"])}
+                lech = [k for k, w in want_mono.items() if got_map.get(k) != w]
+                print(f"     mono Loc 'en': {len(got_map)} key | "
+                      f"{'KHOP VI ' + str(len(want_mono) - len(lech)) + '/' + str(len(want_mono)) if not lech else 'LECH ' + str(len(lech))}")
+                if lech:
+                    ok_all = False
+                    print(f"       vi du lech: {lech[:3]}")
+                checked += 1
+            if checked < 1:
+                print("     !! khong doc duoc mono Localization trong bundle moi")
                 ok_all = False
     print(f"  => {'TAT CA OK' if ok_all else 'THAT BAI'}")
 

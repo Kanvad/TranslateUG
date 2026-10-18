@@ -1,8 +1,12 @@
 """Nap game profile theo ten.
 
 Profile cua game dang dich la **du lieu rieng** (ten game, bundle, glossary, app id...) nen
-KHONG nam trong `src/`: dat `local/games/<ten>.py` (khong day len GitHub). `src/games/` chi
-chua khuon mau trung tinh. Xem SKILL.md.
+KHONG nam trong `src/`. Moi game co mot thu muc du lieu rieng:
+
+    local/<ten>/         game.py (profile), build/, kaggle_*.ipynb, SKILL.md, aa_backup_*/...
+
+kieu cu `local/games/<ten>.py` van duoc tim cho tuong thich. `src/games/` chi chua khuon mau
+trung tinh. Xem SKILL.md.
 
     from games import load_profile, game_arg
     P = load_profile(game_arg())     # game_arg doc --game tren argv
@@ -15,32 +19,48 @@ import os
 import sys
 
 from .profile import Asset, GameProfile
+import paths as _paths
 
 _SRC_GAMES = os.path.dirname(os.path.abspath(__file__))
-_LOCAL_GAMES = os.path.join(os.path.dirname(os.path.dirname(_SRC_GAMES)), "local", "games")
 
-# Thu tu tim: du lieu rieng truoc, khuon mau trong src/ sau.
-SEARCH_DIRS = (_LOCAL_GAMES, _SRC_GAMES)
+# Thu tu tim: local/<ten>/game.py (cau truc moi, moi game mot thu muc) truoc,
+# local/games/<ten>.py (cau truc cu — tuong thich), khuon mau trong src/ sau.
+SEARCH_DIRS = ("local/<ten>/", _paths.GAMES, _SRC_GAMES)
 
 # Module phu tro cua chinh package nay, khong phai game profile.
 _HELPERS = ("profile",)
 
 
 def available() -> list:
-    """Ten cac profile tim thay (khong trung lap, giu thu tu SEARCH_DIRS)."""
+    """Ten cac profile tim thay (khong trung lap, giu thu tu tim)."""
     out = []
-    for d in SEARCH_DIRS:
-        if os.path.isdir(d):
-            for f in sorted(os.listdir(d)):
-                if f.endswith(".py") and not f.startswith("_"):
-                    name = f[:-3]
-                    if name not in out and name not in _HELPERS:
-                        out.append(name)
+    if os.path.isdir(_paths.LOCAL):
+        for d in sorted(os.listdir(_paths.LOCAL)):
+            if d in ("games",):
+                continue
+            if os.path.isfile(os.path.join(_paths.LOCAL, d, "game.py")):
+                if d not in out:
+                    out.append(d)
+    if os.path.isdir(_paths.GAMES):
+        for f in sorted(os.listdir(_paths.GAMES)):
+            if f.endswith(".py") and not f.startswith("_"):
+                name = f[:-3]
+                if name not in out and name not in _HELPERS:
+                    out.append(name)
+    if os.path.isdir(_SRC_GAMES):
+        for f in sorted(os.listdir(_SRC_GAMES)):
+            if f.endswith(".py") and not f.startswith("_"):
+                name = f[:-3]
+                if name not in out and name not in _HELPERS:
+                    out.append(name)
     return out
 
 
 def _find(name: str):
-    for d in SEARCH_DIRS:
+    p = os.path.join(_paths.LOCAL, name, "game.py")
+    if os.path.isfile(p):
+        return p
+    for d in (_paths.GAMES, _SRC_GAMES):
         p = os.path.join(d, f"{name}.py")
         if os.path.isfile(p):
             return p
@@ -48,8 +68,12 @@ def _find(name: str):
 
 
 def load_profile(name: str | None = None) -> GameProfile:
-    """Nap `local/games/<ten>.py` (hoac `src/games/<ten>.py`) va goi `build()`.
+    """Nap profile cua game `name` va doi BUILD sang `local/<name>/build`.
 
+    Mac dinh tim kiem:
+      1. local/<ten>/game.py     (cau truc moi — khuyen dung, moi game mot thu muc)
+      2. local/games/<ten>.py    (cau truc CU — tuong thich)
+      3. src/games/<ten>.py      (khuon mau trung tinh)
     Khong truyen `name`: dung luon profile duy nhat tim thay; nhieu profile thi phai
     chon bang `--game <ten>`.
     """
@@ -60,7 +84,7 @@ def load_profile(name: str | None = None) -> GameProfile:
         elif not names:
             raise SystemExit(
                 "Chua co game profile nao.\n"
-                "  -> Tao local/games/<ten>.py (khung mau: xem SKILL.md)")
+                "  -> Tao local/<ten>/game.py (khung mau: xem SKILL.md)")
         else:
             raise SystemExit(
                 f"Co nhieu game profile: {', '.join(names)}\n"
@@ -68,8 +92,10 @@ def load_profile(name: str | None = None) -> GameProfile:
     path = _find(name)
     if path is None:
         raise SystemExit(
-            f"Khong thay game profile '{name}' trong {_LOCAL_GAMES} hay {_SRC_GAMES}.\n"
-            f"  -> Tao local/games/{name}.py (khung mau: xem SKILL.md)")
+            f"Khong thay game profile '{name}' (tim local/{name}/game.py, "
+            f"{_paths.GAMES}/{name}.py, {_SRC_GAMES}/{name}.py).\n"
+            f"  -> Tao local/{name}/game.py (khung mau: xem SKILL.md)")
+    _paths.set_game(name)
     spec = importlib.util.spec_from_file_location(f"{__name__}.{name}", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod

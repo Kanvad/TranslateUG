@@ -14,7 +14,7 @@ trong bundle Addressables:
 | Hội thoại | Yarn Spinner | CSV `language,id,text` |
 
 Ngoài ra có thể có asset **dư thừa** (key đã nằm trong bảng chính) hoặc bảng locale **chỉ để đổi font**
-(khai `translated=False`). Danh sách TextAsset thật của game đang dịch: xem `local/SKILL.md`.
+(khai `translated=False`). Danh sách TextAsset thật của game đang dịch: xem `local/<ten>/SKILL.md`.
 
 ## Model dịch (Hy-MT2-7B + llama.cpp)
 
@@ -68,7 +68,9 @@ Ngoài ra có thể có asset **dư thừa** (key đã nằm trong bảng chính
 >
 > **`MODE="failed"` để sửa đơn vị lỗi.** Nó lọc theo *chất lượng* bản dịch cũ và **không** lọc theo
 > "uid đã có trong file" — nếu lọc thêm thì nó không bao giờ sửa được gì, vì lần chạy trước đã ghi ra
-> đủ mọi uid.
+> đủ mọi uid. Từ 18/10/2026 nó còn lọc theo **cột `error`**: đơn vị hỏng khi gọi server được ghi ra với
+> `vi` = bản gốc EN (fallback), thứ mà `qa_check` không phát hiện được (token/sentinel/tiền tố của bản
+> EN copy luôn "đúng") — không lọc theo `error` thì đơn vị đó không bao giờ được dịch lại.
 
 ## Byte-exact
 
@@ -85,7 +87,7 @@ Mod bị ràng buộc với phiên bản game cụ thể (catalog.json, bundle h
 ### Sao lưu trước khi update
 ```bash
 # Chỉ khi game dùng Addressables (có thư mục StreamingAssets/aa/). Đổi đường dẫn theo game của bạn.
-cp -r "Game/Game_Data/StreamingAssets/aa" local/aa_backup_original
+cp -r "Game/Game_Data/StreamingAssets/aa" local/<ten>/aa_backup_original
 ```
 
 ### Sau khi game update
@@ -114,13 +116,14 @@ cp -r "Game/Game_Data/StreamingAssets/aa" local/aa_backup_original
 ## Áp dụng cho game Unity khác
 
 Đường ống này **~80% là máy chung**, chỉ ~20% là cấu hình riêng của từng game. Phần riêng gom vào
-**một file profile**: `local/games/<ten>.py`; mọi script đọc profile qua cờ `--game <ten>` (máy chỉ có
-một profile thì không cần truyền). Đầu ra của mọi game vẫn nằm trong `local/build/` (`src/paths.py` là
-nơi duy nhất biết; muốn tách riêng từng game thì sửa ở đó). Bản ngắn gọn cho agent: **[SKILL.md](SKILL.md)**.
+**một file profile**: `local/<ten>/game.py` (mỗi game một thư mục con riêng `local/<ten>/` chứa cả
+build/, notebook, runbook — thêm game thứ hai không bị nhầm dữ liệu); mọi script đọc profile qua
+cờ `--game <ten>` (máy chỉ có một profile thì không cần truyền). Đầu ra của mỗi game nằm trong
+`local/<ten>/build/` (`src/paths.py` là nơi duy nhất biết). Bản ngắn gọn cho agent: **[SKILL.md](SKILL.md)**.
 
 ### 0. Bản đồ: chung vs riêng
 
-| Chung (không đụng khi sang game khác) | Riêng (nằm trong `local/games/<ten>.py`) |
+| Chung (không đụng khi sang game khác) | Riêng (nằm trong `local/<ten>/game.py`) |
 |---|---|
 | `formats.py` — serializer byte-exact (tham số hoá) | path game, tên bundle, tên TextAsset + định dạng |
 | Lõi `protect.py` — sentinel, gộp token, cắt/ghép tiền tố, QA | `style_ids`, `entity_ids`, `glossary` |
@@ -144,7 +147,7 @@ Gợi ý: chạy `--bundle <một phần tên bundle>` để thu hẹp; nếu ga
 
 ### 2. Viết profile
 
-Tạo `local/games/<ten>.py`:
+Tạo `local/<ten>/game.py`:
 
 ```python
 from games.profile import Asset, GameProfile
@@ -170,7 +173,7 @@ def build():
 
 | Trường | Ý nghĩa |
 |---|---|
-| `textasset` | tên TextAsset (script ghi `local/build/raw/<textasset>.json\|.csv`) |
+| `textasset` | tên TextAsset (script ghi `local/<ten>/build/raw/<textasset>.json\|.csv`) |
 | `bundle` | tên file bundle chứa nó |
 | `fmt` | `"json"` (mảng object) hoặc `"csv"` (có header) |
 | `id_field` / `text_field` | tên khoá/cột định danh và chứa chữ |
@@ -245,15 +248,15 @@ nhớ kiểm tra blob catalog sau khi vá).
 
 # 2) Sinh notebook + chạy trên Kaggle (Internet On, GPU T4 x2)
 .venv/bin/python src/make_kaggle_llamacpp.py --game <ten>
-#    -> local/kaggle_<ten>_llamacpp.ipynb ; tải translations_hymt2.jsonl về local/build/
+#    -> local/<ten>/kaggle_<ten>_llamacpp.ipynb ; tải translations_hymt2.jsonl về local/<ten>/build/
 
 # 3) Đo + sửa
 .venv/bin/python src/eval_translations.py --game <ten> --no-plots
-.venv/bin/python src/repair_sentinels.py local/build/translations_hymt2.jsonl --game <ten>
+.venv/bin/python src/repair_sentinels.py local/<ten>/build/translations_hymt2.jsonl --game <ten>
 
 # 4) Nạp
 .venv/bin/python src/inject.py --game <ten>
-bash local/build/mod/apply.sh
+bash local/<ten>/build/mod/apply.sh
 ```
 
 `inject.py` là cổng QA cuối: QA cứng không đạt thì nó **từ chối** chạy.

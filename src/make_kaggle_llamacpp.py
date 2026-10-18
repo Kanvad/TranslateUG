@@ -769,7 +769,7 @@ if MODE == "failed":
         r = prev.get(u["uid"])
         if u["skip"]:
             reuse[u["uid"]] = dict(uid=u["uid"], vi=u["en"], qa_ok=True, note="skipped")
-        elif r is not None and not needs_work(u, str(r["vi"])):
+        elif r is not None and "error" not in r and not needs_work(u, str(r["vi"])):
             reuse[u["uid"]] = dict(uid=u["uid"], vi=str(r["vi"]), qa_ok=True, note="reused_ok")
         else:
             work.append(u)
@@ -784,8 +784,10 @@ if os.path.exists(OUT_PATH):
         if l.strip():
             r = json.loads(l); done[r["uid"]] = r
     # CHI loc "da co trong file" khi MODE=all.
-    # MODE=failed da loc theo CHAT LUONG ban dich cu; neu loc them lan nua thi khong bao gio
-    # sua duoc gi — vi lan chay truoc ghi ra DU 14.681 uid, nen work se thanh rong.
+    # MODE=failed da loc theo CHAT LUONG ban dich cu (needs_work/qa_check) va theo cot
+    # "error" (don vi hong khi goi server, vi=en luon lot qua qa_check); neu loc them
+    # lan nua thi khong bao gio sua duoc gi — vi lan chay truoc ghi ra DU 14.681 uid,
+    # nen work se thanh rong.
     if MODE != "failed":
         work = [u for u in work if u["uid"] not in done]
 
@@ -805,6 +807,10 @@ frev = open(REVIEW_PATH, "a", encoding="utf-8")
 stat = dict(ok=0, bad=0, err=0, n=0, chars=0)
 _total_chars = sum(len(u["masked"]) for u in work)
 t0 = time.time()
+# Nhip in theo THOI GIAN: `MODE="failed"` co the chi con vai chuc dv (< moc 200) —
+# khong co nhap thu thi cell in im long hang chu phut mau dau phai la "treo".
+_PRINT_EVERY_S = 60.0
+_last_print = [time.time()]
 STATS = dict(batches=0, fallback=0, gen_tok=0, gen_pad=0, cap_hit=0, prompt_tok=0,
              prompt_ms=0.0, gen_ms=0.0)
 
@@ -833,6 +839,7 @@ def handle(chunk, outs):
 
 def progress():
     fh.flush()
+    _last_print[0] = time.time()
     el = max(time.time() - t0, 1e-9)
     cps = stat["chars"] / el
     left = max(_total_chars - stat["chars"], 0)
@@ -863,7 +870,8 @@ def worker_run(w, my_batches):
                 before = stat["n"]
                 for b, outs in zip(grp, outs_list):
                     handle(b, outs)
-                if stat["n"] // 200 != before // 200 or stat["n"] == len(work):
+                if stat["n"] // 200 != before // 200 or stat["n"] == len(work) \
+                        or time.time() - _last_print[0] >= _PRINT_EVERY_S:
                     progress()
         return
 
@@ -887,7 +895,8 @@ def worker_run(w, my_batches):
             with lock:
                 before = stat["n"]
                 handle(b, outs[0])
-                if stat["n"] // 200 != before // 200 or stat["n"] == len(work):
+                if stat["n"] // 200 != before // 200 or stat["n"] == len(work) \
+                        or time.time() - _last_print[0] >= _PRINT_EVERY_S:
                     progress()
 
     ths = [threading.Thread(target=one_thread, daemon=True)
@@ -987,7 +996,7 @@ MD("""
 ## 9. Tải kết quả về
 
 Tải `/kaggle/working/translations_hymt2.jsonl` (và `review_hymt2.jsonl` nếu còn lỗi), đặt vào
-`local/build/` của repo rồi chạy `python src/eval_translations.py`.
+`local/<ten>/build/` của repo rồi chạy `python src/eval_translations.py`.
 """)
 
 nb = {"cells": CELLS,

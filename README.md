@@ -8,7 +8,8 @@ Vì sao phải ghi đè: game Unity đóng gói sẵn thường **không cho th�
 (enum `LanguageID` nằm trong `Assembly-CSharp.dll`) ⇒ người chơi chọn ngôn ngữ gốc (thường `en`) sẽ đọc bản dịch.
 
 > **Dữ liệu riêng của game KHÔNG nằm trong phần publish.** Game profile (tên game, bundle, glossary,
-> app id) đặt ở `local/games/<ten>.py`. Repo này là quy trình mẫu áp dụng cho game; `src/games/` chứa khuôn mẫu profile. Mọi script đọc profile
+> app id) đặt ở `local/<ten>/game.py` — mỗi game một thư mục con riêng để thêm game thứ hai không
+> bị nhầm dữ liệu. Repo này là quy trình mẫu áp dụng cho game; `src/games/` chứa khuôn mẫu profile. Mọi script đọc profile
 > qua `--game <ten>` — không truyền thì dùng profile duy nhất tìm thấy.
 
 **Đọc thêm:** [HUONG-DAN.md](HUONG-DAN.md) — nguồn văn bản, bẫy khi chạy Kaggle, áp dụng cho game khác
@@ -18,8 +19,8 @@ Vì sao phải ghi đè: game Unity đóng gói sẵn thường **không cho th�
 
 ```
 [local]  extract_units.py                    →  units.jsonl
-[Kaggle] local/kaggle_<ten>_llamacpp.ipynb   →  translations_hymt2.jsonl (GGUF + llama.cpp, 2×T4)
-[local]  inject.py                           →  local/build/mod/         (QA 5 lớp + repack + vá CRC + fix font)
+[Kaggle] local/<ten>/kaggle_<ten>_llamacpp.ipynb →  translations_hymt2.jsonl (GGUF + llama.cpp, 2×T4)
+[local]  inject.py                           →  local/<ten>/build/mod/   (QA 5 lớp + repack + vá CRC + fix font)
 [local]  apply.sh                            →  copy vào game
 ```
 
@@ -32,7 +33,7 @@ export UV_CACHE_DIR=$PWD/.uv-cache TMPDIR=$PWD/.tmp
 .venv/bin/python src/make_kaggle_llamacpp.py   # 2. sinh notebook → chạy trên Kaggle
 .venv/bin/python src/eval_translations.py      # 3. đo + sửa
 .venv/bin/python src/inject.py                 # 4. QA cứng + đóng gói
-bash local/build/mod/apply.sh                  #    nạp vào game
+bash local/<ten>/build/mod/apply.sh            #    nạp vào game
 ```
 
 > Thêm `--game <ten>` cho mọi script nếu máy có nhiều game profile. Bẫy đã gặp (asset llama.cpp, cờ `-fa on`,
@@ -49,13 +50,14 @@ bash local/build/mod/apply.sh                  #    nạp vào game
 ```
 
 `inject.py` là cổng QA cuối: không đạt thì **từ chối** chạy. Danh sách lỗi ghi ở
-`local/build/qa_canh_bao.json`.
+`local/<ten>/build/qa_canh_bao.json`.
 
 ## Cấu trúc
 
 - `src/` — toàn bộ đường ống (máy móc chung).
-- `local/` — **không publish**: profile, đầu ra pipeline, số đo/runbook, bản sao vanilla.
-- `src/paths.py` — nơi duy nhất biết dữ liệu local nằm ở đâu.
+- `local/` — **không publish**, chia theo game: `local/<ten>/` chứa profile (`game.py`), đầu ra
+  pipeline (`build/`), số đo/runbook, nhật ký, bản sao vanilla.
+- `src/paths.py` — nơi duy nhất biết dữ liệu local nằm ở đâu (`local/<ten>/build/...`).
 
 Chi tiết file và quy trình porting sang game khác: xem [HUONG-DAN.md](HUONG-DAN.md) và [SKILL.md](SKILL.md).
 
@@ -72,5 +74,5 @@ Chi tiết file và quy trình porting sang game khác: xem [HUONG-DAN.md](HUONG
 - [Source Han Sans](https://github.com/adobe-fonts/source-han-sans) — font chèn thay font TMP thiếu
   glyph tiếng Việt.
 
-Tool/asset của từng game cụ thể nằm trong `local/` — kiểm tra `local/games/<ten>.py` để thấy nguồn
+Tool/asset của từng game cụ thể nằm trong `local/<ten>/` — kiểm tra `local/<ten>/game.py` để thấy nguồn
 font và asset nào được dùng cho game đó.

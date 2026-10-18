@@ -7,7 +7,7 @@ import argparse, base64, json, os, re, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from games import load_profile, game_arg  # noqa: E402
-from paths import BUILD                   # noqa: E402
+import paths                                                    # noqa: E402
 
 P = load_profile(game_arg())
 ORIG = P.catalog
@@ -37,7 +37,7 @@ def entries(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("catalog", nargs="?", default=os.path.join(BUILD, "mod", "catalog.json"))
+    ap.add_argument("catalog", nargs="?", default=os.path.join(paths.BUILD, "mod", "catalog.json"))
     ap.add_argument("--game", default=game_arg(), help="game profile trong src/games/")
     a = ap.parse_args()
     new = a.catalog

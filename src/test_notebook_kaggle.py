@@ -120,15 +120,22 @@ g2 = dict(g, MODE="failed", OUT_PATH=os.path.join(tmp, "out2.jsonl"))
 with open(g2["OUT_PATH"], "w", encoding="utf-8") as f:
     f.write(json.dumps(dict(uid=1, vi="Tui da mo", qa_ok=True, note="x"), ensure_ascii=False) + "\n")
     f.write(json.dumps(dict(uid=2, vi="sai", qa_ok=False, note="x"), ensure_ascii=False) + "\n")
+    # Dong hong khi goi server: vi = ban goc EN. Don vi nhu vay LUON lot qua qa_check
+    # (token giong giong nhau) — duy cot "error" de MODE=failed phai dich lai.
+    f.write(json.dumps(dict(uid=3, vi=units[3]["en"], qa_ok=False, note="error",
+                            error="URLError: [Errno 111] Connection refused"),
+             ensure_ascii=False) + "\n")
 g2["gen_many"] = fake_gen
 CALLS.clear()
 exec(compile(src_main, "main3", "exec"), g2)
 r2 = {json.loads(l)["uid"]: json.loads(l) for l in open(g2["OUT_PATH"], encoding="utf-8")}
 # uid 1 da co trong file output va ban dich CU dat QA -> phai giu nguyen, khong goi model.
 # uid 2 (tien to "narrator:" bi mat) -> phai dich lai.
+# uid 3 co cot "error" (vi = EN goc) -> phai dich lai chu khong duoc cong la dich duoc ROI.
 assert r2[1]["vi"] == "Tui da mo", f"uid 1 bi dich lai ngoai y muon: {r2[1]['vi']!r}"
 assert r2[2]["vi"] == "narrator:VI Exactly right.", f"uid 2 khong duoc dich lai: {r2[2]['vi']!r}"
-assert len(CALLS) >= 1, "uid 2 phai duoc goi model"
-print(f"  MODE=failed: giu uid 1, dich lai uid 2 ({len(CALLS)} lan goi model) OK")
+assert r2[3].get("error") is None and r2[3].get("qa_ok"), f"uid 3 chua duoc dich lai: {r2[3]!r}"
+assert len(CALLS) >= 1, "uid 2/3 phai duoc goi model"
+print(f"  MODE=failed: giu uid 1, dich lai uid 2 + uid 3 (error) ({len(CALLS)} lan goi model) OK")
 
 print("\nTAT CA TEST PASS")

@@ -9,7 +9,7 @@ import hashlib, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from games import load_profile, game_arg                     # noqa: E402
 from formats import loads_json, dumps_json, load_csv, dump_csv  # noqa: E402
-from paths import BUILD                                        # noqa: E402
+import paths                                                    # noqa: E402
 
 P = load_profile(game_arg())
 JO = dict(indent=P.json_opts["indent"], newline=P.json_opts["newline"],
@@ -17,7 +17,7 @@ JO = dict(indent=P.json_opts["indent"], newline=P.json_opts["newline"],
 
 checks = []
 for a in P.assets:
-    raw = open(os.path.join(BUILD, "raw", a.raw_name), "rb").read()
+    raw = open(os.path.join(paths.BUILD, "raw", a.raw_name), "rb").read()
     if a.fmt == "json":
         obj = loads_json(raw)
         ok = dumps_json(obj, **JO) == raw
