@@ -1,0 +1,27 @@
+# Du lieu local: dau ra pipeline, ban sao game, nhat ky do luong.
+# Ca thu muc nay KHONG day len GitHub (xem README muc "Cau truc repo").
+local/
+
+# Moi truong ao + cache cong cu
+.venv/
+.uv-cache/
+.tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Notebook / editor / he dieu hanh
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# File tam va ban sao
+*.bak
+*.orig
+*~
